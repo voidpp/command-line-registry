@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+
+import re
+from command_tree import CommandTree, Config as CTConfig
+from command_line_registry.config import load, save, App
+from tabulate import tabulate
+
+cfg = load()
+
+if not cfg:
+    cfg = save()
+
+tree = CommandTree(CTConfig(
+    prepend_double_hyphen_prefix_if_arg_has_default = True,
+    generate_simple_hyphen_name = True,
+))
+
+
+@tree.root()
+class Root:
+
+    @tree.leaf()
+    @tree.argument(nargs = '?', help = "regex search")
+    def list(self, search):
+        """List command"""
+        rows = []
+        search_pattern = re.compile(search) if search else None
+        for app in cfg.apps:
+            if search_pattern and (not search_pattern.search(app.name) and not search_pattern.search(app.desc)):
+                continue
+            rows.append([app.name, app.desc])
+        return tabulate(rows, tablefmt = "plain")
+
+    @tree.leaf()
+    @tree.argument()
+    @tree.argument()
+    def register(self, name: str, desc = ''):
+        """Register command"""
+        app = App()
+        app.name = name
+        app.desc = desc
+        cfg.apps.append(app)
+
+        save(cfg)
+
+        return 'ok'
+
+
+print(tree.execute())
